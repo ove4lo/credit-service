@@ -4,13 +4,19 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/ove4lo/credit-service/internal/application"
 )
 
 func main() {
-	store, err := application.NewStore("postgres://postgres:secret@localhost:5432/credit?sslmode=disable")
+	dsn := os.Getenv("DATABASE_DSN")
 
+	if dsn == "" {
+		log.Fatal("DATABASE_DSN is not set")
+	}
+
+	store, err := application.NewStore(dsn)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,0 +1,28 @@
+services:
+  app:
+    build: . # Will build application from the Dockerfile in the current folder
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"
+    depends_on: 
+      db: # Compose starts the database first, then the application
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: credit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./internal/application/schema.sql:/docker-entrypoint-initdb.d/schema.sql # Postgres picks it up automatically during initialization
+    healthcheck: # Docker periodically runs pg_isready (the command "Is the database ready to accept requests?")
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credit"] # Considers the container "healthy" only when it responds "yes"
+      interval: 3s
+      timeout: 3s
+      retries: 5
+volumes:
+  pgdata:
