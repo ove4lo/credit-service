@@ -9,7 +9,11 @@ import (
 )
 
 func main() {
-	store := application.NewStore()
+	store, err := application.NewStore("postgres://postgres:secret@localhost:5432/credit?sslmode=disable")
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Registering a handler function for the POST /applications route
 	http.HandleFunc("POST /applications", func(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +25,12 @@ func main() {
 			return
 		}
 
-		saved := store.Add(app)
+		saved, err := store.Add(app)
+
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
