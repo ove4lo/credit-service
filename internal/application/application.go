@@ -1,5 +1,11 @@
 package application
 
+import (
+	"database/sql"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
 // Application represents an individual request
 type Application struct {
 	// NOTE: json:"..." - what is the field called in json
@@ -12,22 +18,37 @@ type Application struct {
 
 // Store represents a simple memory cell
 type Store struct {
-	items []Application
-	nextID int
+	db *sql.DB
 }
 
 // NewStore create and returns an exemplar of Store
-func NewStore() *Store {
-	return &Store{nextID: 1}
+func NewStore(dsn string) (*Store, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	return &Store{db: db}, nil
 }
 
 // Add accept the request and saves it to memory, returning the completed request
-func (s *Store) Add(app Application) Application { // WHY: `*` is used so that the original is modified, rather than a copy
-	app.ID = s.nextID
+func (s *Store) Add(app Application) (Application, error) { // WHY: `*` is used so that the original is modified, rather than a copy
 	app.Status = "new"
 
-	s.nextID++ // NOTE: shift the counter
-	s.items = append(s.items, app) // NOTE: place in storage
+	err := s.db.QueryRow(
+		`INSERT INTO applications (client, amount, term, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id`,
+		app.Client, app.Amount, app.Term, app.Status,
+	).Scan(&app.ID)
 
-	return app
+	if err != nil {
+		return Application{}, err
+	}
+
+	return app, nil
 }
