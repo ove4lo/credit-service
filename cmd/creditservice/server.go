@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/ove4lo/credit-service/internal/application"
 )
@@ -20,6 +22,22 @@ type createApplicationRequest struct {
 	Term int `json:"term"`
 }
 
+func (r createApplicationRequest) validate() error {
+	if strings.TrimSpace(r.Client) == "" { // WHY: trims whitespace
+		return errors.New("client is required")
+	}
+
+	if r.Amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+
+	if r.Term <= 0 {
+		return  errors.New("term must be positive")
+	}
+
+	return nil
+}
+
 // handleCreateApplication handles the POST request to create a new application
 func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request) {
 	var req createApplicationRequest
@@ -29,6 +47,17 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 		s.logger.Warn("invalid request body", "error", err)
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return  // WHY: Stop execution immediately if the input data is invalid
+	}
+
+	// NOTE: validate input before touching the database
+	if err := req.validate(); err != nil {
+		s.logger.Warn("validation failed", "error", err)
+		/** WHY:  422 — the JSON is valid and parsed successfully, 
+			but the data is logically invalid (e.g., a negative amount)
+		*/
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity) 
+		// NOTE: In other words: "I understood it, but I can't accept it"
+		return
 	}
 
 	// NOTE: Build the domain model from allowed input fields only
