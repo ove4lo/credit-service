@@ -31,6 +31,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Error("JWT_SECRET isn't set")
+		os.Exit(1)
+	}
+
 	// Connecting to the database
 	store, err := application.NewStore(dsn)
 	if err != nil {
@@ -42,10 +48,12 @@ func main() {
 	srv := &server{
 		logger: logger,
 		store:  store,
+		jwtSecret: []byte(jwtSecret), // WHY: []byte, because the signature library works with bytes
 	}
 
 	// Routing: path → server method
-	http.HandleFunc("POST /applications", srv.handleCreateApplication)
+	http.HandleFunc("POST /login", srv.handleLogin) // simple auth, open
+	http.HandleFunc("POST /applications", srv.requiredAuth(srv.handleCreateApplication)) // close
 
 	// WHY: "starting server" is the message (the "what"), while "addr" and ":4000" are the context fields (the details)
 	logger.Info("starting server", "addr", ":4000")
