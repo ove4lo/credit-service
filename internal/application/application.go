@@ -21,6 +21,11 @@ type Store struct {
 	db *sql.DB
 }
 
+// Close the Store, since it owns the connection, it is also responsible for closing it
+func (s *Store) Close() error {
+	return s.db.Close()  // WHY: Whoever opened the resource provides the way to close it
+}
+
 // NewStore create and returns an exemplar of Store
 func NewStore(dsn string) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
