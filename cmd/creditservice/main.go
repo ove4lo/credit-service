@@ -55,7 +55,15 @@ func main() {
 	http.HandleFunc("POST /login", srv.handleLogin) // simple auth, open
 	http.HandleFunc("POST /applications", srv.requiredAuth(srv.handleCreateApplication)) // close
 
+	httpServer := &http.Server{
+		Addr : ":4000",
+		Handler: nil,
+	}
+
 	// WHY: "starting server" is the message (the "what"), while "addr" and ":4000" are the context fields (the details)
 	logger.Info("starting server", "addr", ":4000")
-	http.ListenAndServe(":4000", nil) // WHY: nil means using the standard router
+	if err := httpServer.ListenAndServe(); err != nil {
+		logger.Error("server error", "error", err)
+		os.Exit(1)
+	}
 }
