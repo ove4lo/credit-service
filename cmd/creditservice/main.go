@@ -93,9 +93,14 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// NOTE: Tell the server to stop accepting new requests and wait for current clients to finish
+	// NOTE: First the server closes, then the database
+	// WHY: The server can finish processing the latest requests, but they still need the database
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
+	}
+
+	if err := srv.store.Close(); err != nil {
+		logger.Error("failed to close database", "error", err)
 	}
 
 	logger.Info("server stopped")
