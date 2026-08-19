@@ -52,9 +52,8 @@ func main() {
 	}
 
 	// Routing: path → server method
-	http.HandleFunc("POST /login", srv.handleLogin) // simple auth
-	
-	http.HandleFunc("POST /applications", srv.handleCreateApplication)
+	http.HandleFunc("POST /login", srv.handleLogin) // simple auth, open
+	http.HandleFunc("POST /applications", srv.requiredAuth(srv.handleCreateApplication)) // close
 
 	// WHY: "starting server" is the message (the "what"), while "addr" and ":4000" are the context fields (the details)
 	logger.Info("starting server", "addr", ":4000")
