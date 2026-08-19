@@ -48,9 +48,12 @@ func main() {
 	srv := &server{
 		logger: logger,
 		store:  store,
+		jwtSecret: []byte(jwtSecret), // WHY: []byte, because the signature library works with bytes
 	}
 
 	// Routing: path → server method
+	http.HandleFunc("POST /login", srv.handleLogin) // simple auth
+	
 	http.HandleFunc("POST /applications", srv.handleCreateApplication)
 
 	// WHY: "starting server" is the message (the "what"), while "addr" and ":4000" are the context fields (the details)

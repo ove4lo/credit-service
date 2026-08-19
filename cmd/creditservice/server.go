@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/ove4lo/credit-service/internal/application"
 )
 
@@ -14,12 +16,48 @@ import (
 type server struct {
 	logger *slog.Logger
 	store *application.Store
+	jwtSecret []byte
+}
+
+type loginRequest struct {
+	Username string `json:"username"`
 }
 
 type createApplicationRequest struct {
 	Client string `json:"client"`
 	Amount int `json:"amount"`
 	Term int `json:"term"`
+}
+
+func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Username) == "" {
+		http.Error(w, "username is required", http.StatusUnprocessableEntity)
+		return
+	}
+
+	// WHY: The password is not verified—a token is simply issued based on the name
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{ // NOTE: jwt.SigningMethodHS256 is the standard algorithm used to encrypt the signature
+		"sub": req.Username, // Who is the token owner
+		"iat": time.Now().Unix(), // Date of issue
+		"exp": time.Now().Add(time.Hour).Unix(), // When it goes bad
+	})
+
+	// NOTE: Signing the token with a secret key
+	signed, err := token.SignedString(s.jwtSecret)
+	if err != nil {
+		s.logger.Error("couldn't sign token", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": signed})
 }
 
 func (r createApplicationRequest) validate() error {
