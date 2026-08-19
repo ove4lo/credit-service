@@ -31,6 +31,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Error("JWT_SECRET isn't set")
+		os.Exit(1)
+	}
+
 	// Connecting to the database
 	store, err := application.NewStore(dsn)
 	if err != nil {
