@@ -25,5 +25,16 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # Port for applications (AMQP)
+      - "15672:15672" # Web-based management interface
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 volumes:
   pgdata:
