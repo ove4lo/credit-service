@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/ove4lo/credit-service/internal/application"
 )
 
@@ -17,6 +18,7 @@ type server struct {
 	logger *slog.Logger
 	store *application.Store
 	jwtSecret []byte
+	amqpCh *amqp091.Channel
 }
 
 type loginRequest struct {
