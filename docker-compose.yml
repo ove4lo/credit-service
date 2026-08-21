@@ -6,8 +6,11 @@ services:
     environment:
       DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"
       JWT_SECRET: "dev-secret-change-me"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on: 
       db: # Compose starts the database first, then the application
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   db:

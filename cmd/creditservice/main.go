@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ove4lo/credit-service/internal/application"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -28,10 +29,15 @@ func main() {
 	}))
 
 	dsn := os.Getenv("DATABASE_DSN")
-
 	if dsn == "" {
 		// NOTE: slog doesn't have a Fatal method
 		logger.Error("DATABASE_DSN is not set")
+		os.Exit(1)
+	}
+
+	rabbitURL := os.Getenv("RABBITMQ_URL")
+	if rabbitURL == "" {
+		logger.Error("RABBITMQ_URL isn't set")
 		os.Exit(1)
 	}
 
@@ -47,6 +53,21 @@ func main() {
 		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
+
+	conn, err := amqp091.Dial(rabbitURL) // NOTE: opens a connection (a TCP connection to the broker)
+	if err != nil {
+		logger.Error("failed to connect to rabbitmq", "error", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	ch, err := conn.Channel() // Opens a channel within the connection, all queue operations are performed through it
+	if err != nil {
+		logger.Error("failed to open channel", "error", err)
+		os.Exit(1)
+	}
+	defer ch.Close()
+
 
 	// Building the `server` with dependencies
 	srv := &server{
