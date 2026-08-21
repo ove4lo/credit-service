@@ -165,6 +165,35 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 
 	s.logger.Info("application created", "app_id", saved.ID, "client", saved.Client, "amount", saved.Amount)
 
+	// Assemble the task for the worker
+	task := map[string]any{
+		"application_id": saved.ID,
+		"client": saved.Client,
+	}
+	body, err := json.Marshal(task)
+	if err != nil {
+		// NOTE: Don't drop the response to the client — the request has already been saved
+		s.logger.Error("failed to marshal task", "error", err, "app_id", saved.ID)
+		// WHY: Don't return an error to the client, as the failure to queue the task is an internal issue
+	} else {
+		err := s.amqpCh.Publish(
+			"", // Exchange — empty, meaning we publish directly to the queue by name
+			"debt_check", // Routing key — the name of our queue
+			false, // Mandatory
+			false,  // Immediate
+			amqp091.Publishing{
+				ContentType: "application/json",
+				DeliveryMode: amqp091.Persistent, // The message will survive a broker restart
+				Body: body,
+			},
+		)
+		if err != nil {
+			s.logger.Error("failed to publish task", "error", err, "app_id", saved.ID)
+		} else {
+			s.logger.Info("debt-check task queued", "app_id", saved.ID)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated) // HTTP 201: Successfully created
 	json.NewEncoder(w).Encode(saved) // WHY: Return the updated object (with its new ID) back to the client
