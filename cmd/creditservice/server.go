@@ -199,3 +199,12 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated) // HTTP 201: Successfully created
 	json.NewEncoder(w).Encode(saved) // WHY: Return the updated object (with its new ID) back to the client
 }
+
+// handleHealthz checks whether the server is up or not
+func (s *server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	/** WHY: Is the service alive and ready to accept traffic
+		or does it need to be restarted / should requests not be sent to it?
+	*/
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}

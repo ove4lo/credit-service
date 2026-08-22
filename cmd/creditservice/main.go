@@ -95,6 +95,8 @@ func main() {
 	http.HandleFunc("POST /login", srv.handleLogin) // simple auth, open
 	http.HandleFunc("POST /applications", srv.requiredAuth(srv.handleCreateApplication)) // close
 
+	http.HandleFunc("GET /healthz", srv.handleHealthz) // is the server up or down?
+
 	// NOTE: Create the server instance instead of using global http.ListenAndServe
 	// WHY: We need the object itself to call the .Shutdown() method later
 	httpServer := &http.Server{
