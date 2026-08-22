@@ -33,24 +33,30 @@ func (wk *worker) processMessage(msg amqp.Delivery) {
 		return
 	}
 
-	wk.logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
+	wk.logger.Info("checking client debt", "app_id", task.ApplicationID, "client", task.Client)
 
-	// plag
+	debt, err := wk.store.TotalOpenDebt(context.Background(), task.Client)
+	if err != nil {
+		wk.logger.Error("failed to check debt", "error", err, "app_id", task.ApplicationID)
+	}
+
 	decision := "approved"
-	reason := "no debts found"
-	if task.Amount > 500000 {
+	reason := "acceptable debt level"
+	if debt > 500000 {
 		decision = "rejected"
-		reason = "amount exceeds limit"
+		reason = "outstanding debt exceeds limit"
 	}
 
 	if err := wk.store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
-		wk.logger.Error("failed to update status", "error", err)
+		wk.logger.Error("failed to update status", "error", err, "app_id", task.ApplicationID)
 		msg.Nack(false, false) // unable to record the solution — rejecting
 		return
 	}
 
 	wk.logger.Info("debt check done",
 		"app_id", task.ApplicationID,
+		"client", task.Client,
+		"debt", debt,
 		"decision", decision,
 		"reason", reason,
 	

@@ -81,6 +81,7 @@ func (s *Store) UpdateStatus(ctx context.Context, id int, newStatus string) erro
 	return nil
 }
 
+// TotalOpenDebt sums up outstanding debts for the client
 func (s *Store) TotalOpenDebt(ctx context.Context, client string) (int, error) {
 	var total int
 	err := s.db.QueryRowContext(ctx, 
