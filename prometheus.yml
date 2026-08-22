@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s # how often to poll services
+
+scrape_configs:
+  - job_name: 'credit-service'
+    static_configs:
+      - targets: ['app:4000'] # main service
+  
+  - job_name: 'worker'
+    static_configs:
+      - targets: ['worker:4001'] # worker

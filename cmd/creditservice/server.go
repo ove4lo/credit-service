@@ -165,6 +165,8 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 
 	s.logger.Info("application created", "app_id", saved.ID, "client", saved.Client, "amount", saved.Amount)
 
+	applicationsReceived.Inc() // Increment the counter by 1, each accepted request → +1
+
 	// Assemble the task for the worker
 	task := map[string]any{
 		"application_id": saved.ID,
@@ -198,4 +200,13 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated) // HTTP 201: Successfully created
 	json.NewEncoder(w).Encode(saved) // WHY: Return the updated object (with its new ID) back to the client
+}
+
+// handleHealthz checks whether the server is up or not
+func (s *server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	/** WHY: Is the service alive and ready to accept traffic
+		or does it need to be restarted / should requests not be sent to it?
+	*/
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
 }

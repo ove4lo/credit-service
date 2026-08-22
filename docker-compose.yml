@@ -44,12 +44,36 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    ports:
+      - "4001:4001" 
     environment:
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
       DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - app
+      - worker
+  
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
 
 volumes:
   pgdata:
