@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/ove4lo/credit-service/internal/application"
 )
 
@@ -18,7 +18,7 @@ type server struct {
 	logger *slog.Logger
 	store *application.Store
 	jwtSecret []byte
-	amqpCh *amqp091.Channel
+	amqpCh *amqp.Channel
 }
 
 type loginRequest struct {
@@ -181,9 +181,9 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 			"debt_check", // Routing key — the name of our queue
 			false, // Mandatory
 			false,  // Immediate
-			amqp091.Publishing{
+			amqp.Publishing{
 				ContentType: "application/json",
-				DeliveryMode: amqp091.Persistent, // The message will survive a broker restart
+				DeliveryMode: amqp.Persistent, // The message will survive a broker restart
 				Body: body,
 			},
 		)

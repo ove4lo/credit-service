@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ove4lo/credit-service/internal/application"
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -54,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := amqp091.Dial(rabbitURL) // NOTE: opens a connection (a TCP connection to the broker)
+	conn, err := amqp.Dial(rabbitURL) // NOTE: opens a connection (a TCP connection to the broker)
 	if err != nil {
 		logger.Error("failed to connect to rabbitmq", "error", err)
 		os.Exit(1)
