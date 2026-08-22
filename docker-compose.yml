@@ -44,6 +44,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    ports:
+      - "4001:4001" 
     environment:
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
       DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"

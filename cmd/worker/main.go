@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/ove4lo/credit-service/internal/application"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -25,6 +29,14 @@ type worker struct {
 	store *application.Store
 }
 
+var decisionsTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+			Name: "credit_decisions_total",
+			Help: "Total number of credit decisions by outcome.",
+		},
+		[]string{"decision"}, // tag
+)
+
 func (wk *worker) processMessage(msg amqp.Delivery) {
 	var task debtCheckTask
 	if err := json.Unmarshal(msg.Body, &task); err != nil {
@@ -38,6 +50,8 @@ func (wk *worker) processMessage(msg amqp.Delivery) {
 	debt, err := wk.store.TotalOpenDebt(context.Background(), task.Client)
 	if err != nil {
 		wk.logger.Error("failed to check debt", "error", err, "app_id", task.ApplicationID)
+		msg.Nack(false, false)
+		return
 	}
 
 	decision := "approved"
@@ -52,6 +66,8 @@ func (wk *worker) processMessage(msg amqp.Delivery) {
 		msg.Nack(false, false) // unable to record the solution — rejecting
 		return
 	}
+
+	decisionsTotal.WithLabelValues(decision).Inc()
 
 	wk.logger.Info("debt check done",
 		"app_id", task.ApplicationID,
@@ -132,6 +148,19 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("GET /metrics", promhttp.Handler())
+		mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ok"))
+		})
+		logger.Info("worker metrics server on :4001")
+		if err := http.ListenAndServe(":4001", mux); err != nil && err != http.ErrServerClosed {
+			logger.Error("metrics server error", "error", err)
+		}
+	}()
 	
 	const workerCount = 3
 
