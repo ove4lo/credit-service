@@ -80,3 +80,18 @@ func (s *Store) UpdateStatus(ctx context.Context, id int, newStatus string) erro
 
 	return nil
 }
+
+func (s *Store) TotalOpenDebt(ctx context.Context, client string) (int, error) {
+	var total int
+	err := s.db.QueryRowContext(ctx, 
+		`SELECT COALESCE(SUM(amount), 0)
+		FROM debts
+		WHERE client = $1 AND closed = false`,
+		client,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("querying total open debt: %w", err)
+	}
+
+	return total, nil
+}
