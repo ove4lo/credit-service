@@ -12,6 +12,7 @@ import (
 type debtCheckTask struct {
 	ApplicationID int `json:"application_id"`
 	Client string `json:"client"`
+	Amount int `json:"amount"`
 }
 
 func main() {
@@ -79,6 +80,18 @@ func main() {
 		logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
 
 		// plag
+		decision := "approved"
+		reason := "no debts found"
+		if task.Amount > 500000 {
+			decision = "rejected"
+			reason = "amount exceeds limit"
+		}
+
+		logger.Info("debt check done",
+			"app_id", task.ApplicationID,
+			"decision", decision,
+			"reason", reason,
+		)
 		msg.Ack(false) // NOTE: acknowledging: processed, remove from queue
 	}
 }

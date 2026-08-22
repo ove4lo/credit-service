@@ -169,6 +169,7 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 	task := map[string]any{
 		"application_id": saved.ID,
 		"client": saved.Client,
+		"amount": saved.Amount,
 	}
 	body, err := json.Marshal(task)
 	if err != nil {
