@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/ove4lo/credit-service/internal/application"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -15,6 +18,44 @@ type debtCheckTask struct {
 	ApplicationID int `json:"application_id"`
 	Client string `json:"client"`
 	Amount int `json:"amount"`
+}
+
+type worker struct {
+	logger *slog.Logger
+	store *application.Store
+}
+
+func (wk *worker) processMessage(msg amqp.Delivery) {
+	var task debtCheckTask
+	if err := json.Unmarshal(msg.Body, &task); err != nil {
+		wk.logger.Error("bad task payload", "error", err)
+		msg.Nack(false, false) // WHY: malformed message — reject without return
+		return
+	}
+
+	wk.logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
+
+	// plag
+	decision := "approved"
+	reason := "no debts found"
+	if task.Amount > 500000 {
+		decision = "rejected"
+		reason = "amount exceeds limit"
+	}
+
+	if err := wk.store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
+		wk.logger.Error("failed to update status", "error", err)
+		msg.Nack(false, false) // unable to record the solution — rejecting
+		return
+	}
+
+	wk.logger.Info("debt check done",
+		"app_id", task.ApplicationID,
+		"decision", decision,
+		"reason", reason,
+	
+	)
+	msg.Ack(false) // NOTE: acknowledging: processed, remove from queue
 }
 
 func main() {
@@ -81,38 +122,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("worker started, waiting for tasks")
+	wk := &worker{logger: logger, store: store}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	
-	// NOTE: Read messages from the channel one by one
-	for msg := range deliveries {
-		var task debtCheckTask
-		if err := json.Unmarshal(msg.Body, &task); err != nil {
-			logger.Error("bad task payload", "error", err)
-			msg.Nack(false, false) // WHY: malformed message — reject without return
-			continue
-		}
+	const workerCount = 3
 
-		logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
+	var wg sync.WaitGroup
+	logger.Info("workers started, waiting for tasks", "workers", workerCount)
 
-		// plag
-		decision := "approved"
-		reason := "no debts found"
-		if task.Amount > 500000 {
-			decision = "rejected"
-			reason = "amount exceeds limit"
-		}
-
-		if err := store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
-			logger.Error("failed to update status", "error", err)
-			msg.Nack(false, false) // unable to record the solution — rejecting
-			continue
-		}
-
-		logger.Info("debt check done",
-			"app_id", task.ApplicationID,
-			"decision", decision,
-			"reason", reason,
-		)
-		msg.Ack(false) // NOTE: acknowledging: processed, remove from queue
+	for i := 0; i < workerCount; i++ {
+		// WHY: `wg.Add(1)` before each goroutine — we register with the `WaitGroup` that we’ve launched another one
+		wg.Add(1)
+		go func() {
+			defer wg.Done() // NOTE: when the goroutine finishes, it will decrement the counter
+			for msg := range deliveries { // NOTE: All three goroutines read from the same channel
+				wk.processMessage(msg)
+			}
+		}()
 	}
+	
+	// NOTE: Waiting for a stop signal
+	<-ctx.Done()
+	logger.Info("shutdown signal received")
+
+	// NOTE: Cancel the subscription → the deliveries channel will close → the goroutine loops will terminate
+	if err := ch.Close(); err != nil {
+		logger.Error("failed to close channel", "error", err)
+	}
+
+	wg.Wait() // The main blocks here until all three goroutines finish
+	logger.Info("all workers stopped")
 }
