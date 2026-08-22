@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ove4lo/credit-service/internal/application"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -96,6 +97,7 @@ func main() {
 	http.HandleFunc("POST /applications", srv.requiredAuth(srv.handleCreateApplication)) // close
 
 	http.HandleFunc("GET /healthz", srv.handleHealthz) // is the server up or down?
+	http.Handle("GET /metrics", promhttp.Handler())
 
 	// NOTE: Create the server instance instead of using global http.ListenAndServe
 	// WHY: We need the object itself to call the .Shutdown() method later
