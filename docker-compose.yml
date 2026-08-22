@@ -6,8 +6,11 @@ services:
     environment:
       DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"
       JWT_SECRET: "dev-secret-change-me"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     depends_on: 
       db: # Compose starts the database first, then the application
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   db:
@@ -25,5 +28,28 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # Port for applications (AMQP)
+      - "15672:15672" # Web-based management interface
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      DATABASE_DSN: "postgres://postgres:secret@db:5432/credit?sslmode=disable"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   pgdata:

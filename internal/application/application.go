@@ -1,7 +1,9 @@
 package application
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -56,4 +58,25 @@ func (s *Store) Add(app Application) (Application, error) { // WHY: `*` is used 
 	}
 
 	return app, nil
+}
+
+// UpdateStatus changes the request status only if it is 'new'
+func (s *Store) UpdateStatus(ctx context.Context, id int, newStatus string) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE applications SET status = $1 WHERE id = $2 AND status = 'new'`,
+		newStatus, id,
+	)
+	if err != nil {
+		return fmt.Errorf("updating status: %w", err)
+	}
+
+	rows, err := result.RowsAffected() // how many lines actually changed
+	if err != nil {
+		return  fmt.Errorf("checking affected rows: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("application %d not found or already processed", id)
+	}
+
+	return nil
 }
