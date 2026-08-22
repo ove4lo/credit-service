@@ -165,6 +165,8 @@ func (s *server) handleCreateApplication(w http.ResponseWriter, r *http.Request)
 
 	s.logger.Info("application created", "app_id", saved.ID, "client", saved.Client, "amount", saved.Amount)
 
+	applicationsReceived.Inc() // Increment the counter by 1, each accepted request → +1
+
 	// Assemble the task for the worker
 	task := map[string]any{
 		"application_id": saved.ID,
