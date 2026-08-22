@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"os/signal"
 	"sync"
-	
+	"syscall"
+
 	"github.com/ove4lo/credit-service/internal/application"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -122,6 +124,9 @@ func main() {
 
 	wk := &worker{logger: logger, store: store}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	
 	const workerCount = 3
 
 	var wg sync.WaitGroup
@@ -137,6 +142,16 @@ func main() {
 			}
 		}()
 	}
+	
+	// NOTE: Waiting for a stop signal
+	<-ctx.Done()
+	logger.Info("shutdown signal received")
+
+	// NOTE: Cancel the subscription → the deliveries channel will close → the goroutine loops will terminate
+	if err := ch.Close(); err != nil {
+		logger.Error("failed to close channel", "error", err)
+	}
 
 	wg.Wait() // The main blocks here until all three goroutines finish
+	logger.Info("all workers stopped")
 }
