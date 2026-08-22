@@ -63,7 +63,7 @@ func (s *Store) Add(app Application) (Application, error) { // WHY: `*` is used 
 // UpdateStatus changes the request status only if it is 'new'
 func (s *Store) UpdateStatus(ctx context.Context, id int, newStatus string) error {
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE applicatons SET status = $1 WHERE id = $2 AND status = 'new'`,
+		`UPDATE applications SET status = $1 WHERE id = $2 AND status = 'new'`,
 		newStatus, id,
 	)
 	if err != nil {

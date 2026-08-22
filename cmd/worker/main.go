@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
 
+	"github.com/ove4lo/credit-service/internal/application"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -37,6 +39,19 @@ func main() {
 		os.Exit(1)
 	}
 	defer ch.Close()
+
+	dsn := os.Getenv("DATABASE_DSN")
+	if dsn == "" {
+		logger.Error("DATABASE_DSN isn't set")
+		os.Exit(1)
+	}
+
+	store, err := application.NewStore(dsn)
+	if err != nil {
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
 
 	// NOTE: Declare the same queue — in case the worker started first
 	_, err = ch.QueueDeclare(
@@ -85,6 +100,12 @@ func main() {
 		if task.Amount > 500000 {
 			decision = "rejected"
 			reason = "amount exceeds limit"
+		}
+
+		if err := store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
+			logger.Error("failed to update status", "error", err)
+			msg.Nack(false, false) // unable to record the solution — rejecting
+			continue
 		}
 
 		logger.Info("debt check done",
