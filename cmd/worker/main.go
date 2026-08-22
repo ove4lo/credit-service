@@ -17,6 +17,44 @@ type debtCheckTask struct {
 	Amount int `json:"amount"`
 }
 
+type worker struct {
+	logger *slog.Logger
+	store *application.Store
+}
+
+func (wk *worker) processMessage(msg amqp.Delivery) {
+	var task debtCheckTask
+	if err := json.Unmarshal(msg.Body, &task); err != nil {
+		wk.logger.Error("bad task payload", "error", err)
+		msg.Nack(false, false) // WHY: malformed message — reject without return
+		return
+	}
+
+	wk.logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
+
+	// plag
+	decision := "approved"
+	reason := "no debts found"
+	if task.Amount > 500000 {
+		decision = "rejected"
+		reason = "amount exceeds limit"
+	}
+
+	if err := wk.store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
+		wk.logger.Error("failed to update status", "error", err)
+		msg.Nack(false, false) // unable to record the solution — rejecting
+		return
+	}
+
+	wk.logger.Info("debt check done",
+		"app_id", task.ApplicationID,
+		"decision", decision,
+		"reason", reason,
+	
+	)
+	msg.Ack(false) // NOTE: acknowledging: processed, remove from queue
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -81,38 +119,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	wk := &worker{logger: logger, store: store}
+	
 	logger.Info("worker started, waiting for tasks")
 	
 	// NOTE: Read messages from the channel one by one
 	for msg := range deliveries {
-		var task debtCheckTask
-		if err := json.Unmarshal(msg.Body, &task); err != nil {
-			logger.Error("bad task payload", "error", err)
-			msg.Nack(false, false) // WHY: malformed message — reject without return
-			continue
-		}
-
-		logger.Info("processed debt check", "app_id", task.ApplicationID, "client", task.Client)
-
-		// plag
-		decision := "approved"
-		reason := "no debts found"
-		if task.Amount > 500000 {
-			decision = "rejected"
-			reason = "amount exceeds limit"
-		}
-
-		if err := store.UpdateStatus(context.Background(), task.ApplicationID, decision); err != nil {
-			logger.Error("failed to update status", "error", err)
-			msg.Nack(false, false) // unable to record the solution — rejecting
-			continue
-		}
-
-		logger.Info("debt check done",
-			"app_id", task.ApplicationID,
-			"decision", decision,
-			"reason", reason,
-		)
-		msg.Ack(false) // NOTE: acknowledging: processed, remove from queue
+		wk.processMessage(msg)
 	}
 }
