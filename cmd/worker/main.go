@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
-
+	"sync"
+	
 	"github.com/ove4lo/credit-service/internal/application"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -120,11 +121,22 @@ func main() {
 	}
 
 	wk := &worker{logger: logger, store: store}
-	
-	logger.Info("worker started, waiting for tasks")
-	
-	// NOTE: Read messages from the channel one by one
-	for msg := range deliveries {
-		wk.processMessage(msg)
+
+	const workerCount = 3
+
+	var wg sync.WaitGroup
+	logger.Info("workers started, waiting for tasks", "workers", workerCount)
+
+	for i := 0; i < workerCount; i++ {
+		// WHY: `wg.Add(1)` before each goroutine — we register with the `WaitGroup` that we’ve launched another one
+		wg.Add(1)
+		go func() {
+			defer wg.Done() // NOTE: when the goroutine finishes, it will decrement the counter
+			for msg := range deliveries { // NOTE: All three goroutines read from the same channel
+				wk.processMessage(msg)
+			}
+		}()
 	}
+
+	wg.Wait() // The main blocks here until all three goroutines finish
 }
